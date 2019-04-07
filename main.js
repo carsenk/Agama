@@ -1,15 +1,18 @@
 // main proc for Agama
-// this app spawns iguana in background in nontech-mode
 
 const electron = require('electron');
+const {
+	Menu,
+	ipcMain,
+} = require('electron');
 const app = electron.app;
 const BrowserWindow = electron.BrowserWindow;
 const path = require('path');
 const url = require('url');
 const os = require('os');
-const md5 = require('./routes/md5');
+const { randomBytes } = require('crypto');
+const md5 = require('agama-wallet-lib/src/crypto/md5');
 const exec = require('child_process').exec;
-const { Menu } = require('electron');
 const portscanner = require('portscanner');
 const osPlatform = os.platform();
 const fixPath = require('fix-path');
@@ -19,30 +22,33 @@ const fsnode = require('fs');
 const fs = require('fs-extra');
 const Promise = require('bluebird');
 const arch = require('arch');
+const chainParams = require('./routes/chainParams');
+const { formatBytes } = require('agama-wallet-lib/src/utils');
+
+let staticVar = {}; // static shared main -> renderer vars
+
+ipcMain.on('staticVar', (event, arg) => {
+	event.sender.send('staticVar', !arg ? staticVar : staticVar[arg]);
+});
 
 if (osPlatform === 'linux') {
 	process.env.ELECTRON_RUN_AS_NODE = true;
 }
 
 // GUI APP settings and starting gui on address http://120.0.0.1:17777
-let shepherd = require('./routes/shepherd');
+let api = require('./routes/api');
 let guiapp = express();
 
-shepherd.createAgamaDirs();
+api.createAgamaDirs();
 
-let appConfig = shepherd.loadLocalConfig(); // load app config
+let appConfig = api.loadLocalConfig(); // load app config
 
-const nativeCoindList = shepherd.scanNativeCoindBins();
-shepherd.setVar('nativeCoindList', nativeCoindList);
+/*const nativeCoindList = api.scanNativeCoindBins(); // dex related
+api.setVar('nativeCoindList', nativeCoindList);*/
 
 let localVersion;
-let localVersionFile = shepherd.readVersionFile();
-
-if (localVersionFile.indexOf('\r\n') > -1) {
-  localVersion = localVersionFile.split('\r\n');
-} else {
-  localVersion = localVersionFile.split('\n');
-}
+let localVersionFile = api.readVersionFile();
+localVersion = localVersionFile.split(localVersionFile.indexOf('\r\n') > -1 ? '\r\n' : '\n');
 
 const appBasicInfo = {
 	name: 'Agama',
@@ -52,55 +58,81 @@ const appBasicInfo = {
 app.setName(appBasicInfo.name);
 app.setVersion(appBasicInfo.version);
 
-shepherd.createAgamaDirs();
+api.createAgamaDirs();
 
-const appSessionHash = md5(Date.now().toString());
-const _spvFees = shepherd.getSpvFees();
+// parse argv
+let _argv = {};
 
-shepherd.writeLog(`app info: ${appBasicInfo.name} ${appBasicInfo.version}`);
-shepherd.writeLog('sys info:');
-shepherd.writeLog(`totalmem_readable: ${formatBytes(os.totalmem())}`);
-shepherd.writeLog(`arch: ${os.arch()}`);
-shepherd.writeLog(`cpu: ${os.cpus()[0].model}`);
-shepherd.writeLog(`cpu_cores: ${os.cpus().length}`);
-shepherd.writeLog(`platform: ${osPlatform}`);
-shepherd.writeLog(`os_release: ${os.release()}`);
-shepherd.writeLog(`os_type: ${os.type()}`);
+for (let i = 0; i < process.argv.length; i++) {
+  if (process.argv[i].indexOf('nogui') > -1) {
+  	_argv.nogui = true;
+    api.log('enable nogui mode', 'init');
+  }
 
-if (process.argv.indexOf('devmode') > -1) {
-	shepherd.log(`app init ${appSessionHash}`);
+  if (process.argv[i].indexOf('=') > -1) {
+	  const _argvSplit = process.argv[i].split('=');
+	  _argv[_argvSplit[0]] = _argvSplit[1];
+  }
+
+  if (!_argv.nogui) {
+  	_argv = {};
+  } else {
+  	api.log('arguments', 'init');
+		api.log(_argv, 'init');
+		api.argv = _argv;
+	}
 }
-shepherd.log(`app info: ${appBasicInfo.name} ${appBasicInfo.version}`);
-shepherd.log('sys info:');
-shepherd.log(`totalmem_readable: ${formatBytes(os.totalmem())}`);
-shepherd.log(`arch: ${os.arch()}`);
-shepherd.log(`cpu: ${os.cpus()[0].model}`);
-shepherd.log(`cpu_cores: ${os.cpus().length}`);
-shepherd.log(`platform: ${osPlatform}`);
-shepherd.log(`os_release: ${os.release()}`);
-shepherd.log(`os_type: ${os.type()}`);
 
+const appSessionHash = _argv.token ? _argv.token : randomBytes(32).toString('hex');
+const _spvFees = api.getSpvFees();
+
+api.writeLog(`app info: ${appBasicInfo.name} ${appBasicInfo.version}`);
+api.writeLog('sys info:');
+api.writeLog(`totalmem_readable: ${formatBytes(os.totalmem())}`);
+api.writeLog(`arch: ${os.arch()}`);
+api.writeLog(`cpu: ${os.cpus()[0].model}`);
+api.writeLog(`cpu_cores: ${os.cpus().length}`);
+api.writeLog(`platform: ${osPlatform}`);
+api.writeLog(`os_release: ${os.release()}`);
+api.writeLog(`os_type: ${os.type()}`);
+
+if (process.argv.indexOf('devmode') > -1 ||
+		process.argv.indexOf('nogui') > -1) {
+	api.log(`app init ${appSessionHash}`, 'init');
+}
+
+api.log(`app info: ${appBasicInfo.name} ${appBasicInfo.version}`, 'init');
+api.log('sys info:', 'init');
+api.log(`totalmem_readable: ${formatBytes(os.totalmem())}`, 'init');
+api.log(`arch: ${os.arch()}`, 'init');
+api.log(`cpu: ${os.cpus()[0].model}`, 'init');
+api.log(`cpu_cores: ${os.cpus().length}`, 'init');
+api.log(`platform: ${osPlatform}`, 'init');
+api.log(`os_release: ${os.release()}`, 'init');
+api.log(`os_type: ${os.type()}`, 'init');
+
+// deprecated(?)
 appConfig['daemonOutput'] = false; // shadow setting
 
 let __defaultAppSettings = require('./routes/appConfig.js').config;
 __defaultAppSettings['daemonOutput'] = false; // shadow setting
 const _defaultAppSettings = __defaultAppSettings;
 
-shepherd.log(`app started in ${(appConfig.dev ? 'dev mode' : ' user mode')}`);
-shepherd.writeLog(`app started in ${(appConfig.dev ? 'dev mode' : ' user mode')}`);
+api.log(`app started in ${(appConfig.dev || process.argv.indexOf('devmode') > -1 ? 'dev mode' : ' user mode')}`, 'init');
+api.writeLog(`app started in ${(appConfig.dev || process.argv.indexOf('devmode') > -1 ? 'dev mode' : ' user mode')}`);
 
-shepherd.setConfKMD();
-// shepherd.setConfKMD('CHIPS');
+api.setConfKMD();
+// api.setConfKMD('CHIPS');
 
 guiapp.use((req, res, next) => {
-	res.header('Access-Control-Allow-Origin', appConfig.dev ? '*' : 'http://127.0.0.1:3000');
+	res.header('Access-Control-Allow-Origin', appConfig.dev || process.argv.indexOf('devmode') > -1 ? '*' : 'http://127.0.0.1:3000');
 	res.header('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
 	res.header('Access-Control-Allow-Credentials', 'true');
 	res.header('Access-Control-Allow-Methods', 'PUT, GET, POST, DELETE, OPTIONS');
 	next();
 });
 
-// preload.js
+// preload js
 const _setImmediate = setImmediate;
 const _clearImmediate = clearImmediate;
 
@@ -122,11 +154,11 @@ process.once('loaded', () => {
 });
 
 // silent errors
-if (!appConfig.debug ||
-		!appConfig.dev) {
+if (!appConfig.dev &&
+		!process.argv.indexOf('devmode') > -1) {
 	process.on('uncaughtException', (err) => {
-	  shepherd.log(`${(new Date).toUTCString()} uncaughtException: ${err.message}`);
-	  shepherd.log(err.stack);
+	  api.log(`${(new Date).toUTCString()} uncaughtException: ${err.message}`, 'exception');
+	  api.log(err.stack, 'exception');
 	});
 }
 
@@ -142,16 +174,54 @@ guiapp.get('/', (req, res) => {
 
 const guipath = path.join(__dirname, '/gui');
 guiapp.use('/gui', express.static(guipath));
-guiapp.use('/shepherd', shepherd);
+guiapp.use('/api', api);
 
 const server = require('http').createServer(guiapp);
 const io = require('socket.io').listen(server);
-const _zcashParamsExist = shepherd.zcashParamsExist();
+const _zcashParamsExist = api.zcashParamsExist();
 let willQuitApp = false;
 let mainWindow;
 let appCloseWindow;
 let closeAppAfterLoading = false;
 let forceQuitApp = false;
+
+// apply parsed argv
+if (api.argv) {
+	if (api.argv.servers) {
+		api.log('set electrum servers from argv', 'argv');
+
+		try {
+			const _servers = JSON.parse(api.argv.servers);
+
+			for (let key in _servers) {
+				if (api.electrumServers[key]) {
+					api.electrumServers[key].serverList = _servers[key];
+				}
+			}
+		} catch (e) {
+			api.log('error: malformatted servers argv', 'argv');
+		}
+	}
+
+	if (api.argv.coins) {
+		const _coins = api.argv.coins.split(',');
+
+		for (let i = 0; i < _coins.length; i++) {
+			api.addElectrumCoin(_coins[i].toUpperCase());
+			api.log(`add coin from argv ${_coins[i]}`, 'dev');
+		}
+	}
+
+	if (api.argv.seed) {
+		const _seed = api.argv.seed.split('=');
+
+		if (_seed &&
+				_seed[0]) {
+			api.log('load seed from argv', 'dev');
+			api.auth(_seed[0], true);
+		}
+	}
+}
 
 module.exports = guiapp;
 let agamaIcon;
@@ -169,7 +239,20 @@ function forseCloseApp() {
 	app.quit();
 }
 
-app.on('ready', () => createWindow('open', process.argv.indexOf('dexonly') > -1 ? true : null));
+if (!_argv.nogui ||
+		(_argv.nogui && _argv.nogui === '1')) {
+	app.on('ready', () => createWindow('open', process.argv.indexOf('dexonly') > -1 ? true : null));
+} else {
+	server.listen(appConfig.agamaPort, () => {
+		api.log(`guiapp and sockets.io are listening on port ${appConfig.agamaPort}`, 'init');
+		api.writeLog(`guiapp and sockets.io are listening on port ${appConfig.agamaPort}`, 'init');
+		// start sockets.io
+		io.set('origins', appConfig.dev  || process.argv.indexOf('devmode') > -1 ? 'http://127.0.0.1:3000' : null); // set origin
+	});
+	api.setIO(io); // pass sockets object to api router
+	api.setVar('appBasicInfo', appBasicInfo);
+	api.setVar('appSessionHash', appSessionHash);
+}
 
 function createAppCloseWindow() {
 	// initialise window
@@ -183,7 +266,7 @@ function createAppCloseWindow() {
 
 	appCloseWindow.setResizable(false);
 
-	appCloseWindow.loadURL(`http://${appConfig.host}:${appConfig.agamaPort}/gui/startup/app-closing.html`);
+	appCloseWindow.loadURL(appConfig.dev || process.argv.indexOf('devmode') > -1 ? `http://${appConfig.host}:${appConfig.agamaPort}/gui/startup/app-closing.html` : `file://${__dirname}/gui/startup/app-closing.html`);
 
   appCloseWindow.webContents.on('did-finish-load', () => {
     setTimeout(() => {
@@ -192,9 +275,15 @@ function createAppCloseWindow() {
   });
 }
 
-function createWindow(status, hideLoadingWindow) {
+/*async*/ function createWindow(status, hideLoadingWindow) {
+	/*if (
+    	process.env.NODE_ENV === 'development' ||
+    	process.env.DEBUG_PROD === 'true'
+  	) {
+    	await installExtensions();
+  	}*/
 	if (process.argv.indexOf('spvcoins=all/add-all') > -1) {
-		shepherd.startSPV('kmd');
+		api.startSPV('kmd');
 	}
 
 	if (status === 'open') {
@@ -227,10 +316,10 @@ function createWindow(status, hideLoadingWindow) {
 			// Status is 'open' if currently in use or 'closed' if available
 			if (status === 'closed') {
 				server.listen(appConfig.agamaPort, () => {
-					shepherd.log(`guiapp and sockets.io are listening on port ${appConfig.agamaPort}`);
-					shepherd.writeLog(`guiapp and sockets.io are listening on port ${appConfig.agamaPort}`);
+					api.log(`guiapp and sockets.io are listening on port ${appConfig.agamaPort}`, 'init');
+					api.writeLog(`guiapp and sockets.io are listening on port ${appConfig.agamaPort}`);
 					// start sockets.io
-					io.set('origins', appConfig.dev ? 'http://127.0.0.1:3000' : `http://127.0.0.1:${appConfig.agamaPort}`); // set origin
+					io.set('origins', appConfig.dev || process.argv.indexOf('devmode') > -1 ? 'http://127.0.0.1:3000' : null); // set origin
 				});
 
 				// initialise window
@@ -241,60 +330,72 @@ function createWindow(status, hideLoadingWindow) {
 					show: false,
 				});
 
-				if (appConfig.dev) {
-					mainWindow.loadURL('http://127.0.0.1:3000');
-				} else {
-					mainWindow.loadURL(`http://${appConfig.host}:${appConfig.agamaPort}/gui/EasyDEX-GUI/react/build`);
-				}
+				mainWindow.loadURL(appConfig.dev || process.argv.indexOf('devmode') > -1 ? 'http://127.0.0.1:3000' : `file://${__dirname}/gui/EasyDEX-GUI/react/build/index.html`);
 
-				shepherd.setIO(io); // pass sockets object to shepherd router
-				shepherd.setVar('appBasicInfo', appBasicInfo);
-				shepherd.setVar('appSessionHash', appSessionHash);
+				api.setIO(io); // pass sockets object to api router
+				api.setVar('appBasicInfo', appBasicInfo);
+				api.setVar('appSessionHash', appSessionHash);
 
-				// load our index.html (i.e. easyDEX GUI)
-				shepherd.writeLog('show edex gui');
-				mainWindow.appConfig = appConfig;
-				mainWindow.appConfigSchema = shepherd.appConfigSchema;
-				mainWindow.arch = arch();
-				mainWindow.appBasicInfo = appBasicInfo;
-				mainWindow.appSessionHash = appSessionHash;
-				mainWindow.assetChainPorts = require('./routes/ports.js');
-				mainWindow.agamaIcon = agamaIcon;
-				mainWindow.testLocation = shepherd.testLocation;
-				mainWindow.kmdMainPassiveMode = shepherd.kmdMainPassiveMode;
-				mainWindow.getAppRuntimeLog = shepherd.getAppRuntimeLog;
-				mainWindow.nativeCoindList = nativeCoindList;
-				mainWindow.zcashParamsExist = _zcashParamsExist;
-				mainWindow.zcashParamsExistPromise = shepherd.zcashParamsExistPromise;
-				mainWindow.zcashParamsDownloadLinks = shepherd.zcashParamsDownloadLinks;
-				mainWindow.isWindows = os.platform() === 'win32' ? true : false; // obsolete(?)
-				mainWindow.appExit = appExit;
-				mainWindow.getMaxconKMDConf = shepherd.getMaxconKMDConf;
-				mainWindow.setMaxconKMDConf = shepherd.setMaxconKMDConf;
-				mainWindow.getMMCacheData = shepherd.getMMCacheData;
-				mainWindow.activeSection = 'wallets';
-				mainWindow.argv = process.argv;
-				mainWindow.getAssetChainPorts = shepherd.getAssetChainPorts;
-				mainWindow.spvFees = _spvFees;
-				mainWindow.startSPV = shepherd.startSPV;
-				mainWindow.startKMDNative = shepherd.startKMDNative;
-				mainWindow.addressVersionCheck = shepherd.addressVersionCheck;
-				mainWindow.getCoinByPub = shepherd.getCoinByPub;
-				mainWindow.resetSettings = () => { shepherd.saveLocalAppConf(__defaultAppSettings) };
-				mainWindow.createSeed = {
-					triggered: false,
-					firstLoginPH: null,
-					secondaryLoginPH: null,
+				// load our index.html (i.e. Agama GUI)
+				api.writeLog('show agama gui');
+				const _assetChainPorts = require('./routes/ports.js');
+				
+				staticVar.arch = localVersion[1].indexOf('-spv-only') > -1 ? 'spv-only' : arch();
+				staticVar.appBasicInfo = appBasicInfo;
+				staticVar.assetChainPorts = _assetChainPorts;
+				staticVar.appConfigSchema = api.appConfigSchema;
+				staticVar.zcashParamsDownloadLinks = api.zcashParamsDownloadLinks;
+				staticVar.argv = process.argv;
+				staticVar.isWindows = os.platform() === 'win32' ? true : false;
+				staticVar.spvFees = _spvFees;
+				staticVar.electrumServers = api.electrumServersFlag;
+				staticVar.chainParams = chainParams;
+
+				let _global = {
+					appConfig,
+					arch: localVersion[1].indexOf('-spv-only') > -1 ? 'spv-only' : arch(),
+					appBasicInfo,
+					appSessionHash,
+					testLocation: api.testLocation,
+					kmdMainPassiveMode: api.kmdMainPassiveMode,
+					getAppRuntimeLog: api.getAppRuntimeLog,
+					// nativeCoindList,
+					zcashParamsExist: _zcashParamsExist,
+					zcashParamsExistPromise: api.zcashParamsExistPromise,
+					appExit,
+					getMaxconKMDConf: api.getMaxconKMDConf,
+					setMaxconKMDConf: api.setMaxconKMDConf,
+					// getMMCacheData: api.getMMCacheData,
+					activeSection: 'wallets', // temp deprecated
+					argv: process.argv,
+					getAssetChainPorts: api.getAssetChainPorts,
+					startSPV: api.startSPV,
+					startKMDNative: api.startKMDNative,
+					getCoinByPub: api.getCoinByPub,
+					resetSettings: () => { api.saveLocalAppConf(__defaultAppSettings) },
+					createSeed: {
+						triggered: false,
+						firstLoginPH: null,
+						secondaryLoginPH: null,
+					},
+					checkStringEntropy: api.checkStringEntropy,
+					pinAccess: false,
+					isWatchOnly: api.isWatchOnly,
+					sha256: (data) => {
+						const crypto = require('crypto');
+						return crypto.createHash('sha256').update(data).digest();
+					},
+					randomBytes: (size) => {
+						return randomBytes(size || 32).toString('hex');
+					},
 				};
-
-				mainWindow.nnVoteChain = 'VOTE2018';
-
-			  /*for (let i = 0; i < process.argv.length; i++) {
-			    if (process.argv[i].indexOf('nvote') > -1) {
-			      console.log(`notary node elections chain ${process.argv[i].replace('nvote=', '')}`);
-			      mainWindow.nnVoteChain = process.argv[i].replace('nvote=', '');
-			    }
-			  }*/
+				global.app = _global;
+				/*for (let i = 0; i < process.argv.length; i++) {
+				    if (process.argv[i].indexOf('nvote') > -1) {
+				      console.log('enable notary node elections ui');
+				      mainWindow.nnVoteChain = 'VOTE2018';
+				    }
+				  }*/
 			} else {
 				mainWindow = new BrowserWindow({
 					width: 500,
@@ -309,11 +410,11 @@ function createWindow(status, hideLoadingWindow) {
 
 				willQuitApp = true;
 				server.listen(appConfig.agamaPort + 1, () => {
-					shepherd.log(`guiapp and sockets.io are listening on port ${appConfig.agamaPort + 1}`);
-					shepherd.writeLog(`guiapp and sockets.io are listening on port ${appConfig.agamaPort + 1}`);
+					api.log(`guiapp and sockets.io are listening on port ${appConfig.agamaPort + 1}`, 'init');
+					api.writeLog(`guiapp and sockets.io are listening on port ${appConfig.agamaPort + 1}`);
 				});
-				mainWindow.loadURL(`http://${appConfig.host}:${appConfig.agamaPort + 1}/gui/startup/agama-instance-error.html`);
-				shepherd.log('another agama app is already running');
+				mainWindow.loadURL(appConfig.dev || process.argv.indexOf('devmode') > -1 ? `http://${appConfig.host}:${appConfig.agamaPort + 1}/gui/startup/agama-instance-error.html` : `file://${__dirname}/gui/startup/agama-instance-error.html`);
+				api.log('another agama app is already running', 'init');
 			}
 
 		  mainWindow.webContents.on('did-finish-load', () => {
@@ -334,30 +435,43 @@ function createWindow(status, hideLoadingWindow) {
 		  });*/
 
 			mainWindow.webContents.on('context-menu', (e, params) => { // context-menu returns params
-				const { selectionText, isEditable } = params; // params obj
+				const {
+					selectionText,
+					isEditable,
+				} = params; // params obj
 
 				if (isEditable) {
 					editMenu.popup(mainWindow);
-				} else if (selectionText && selectionText.trim() !== '') {
+				} else if (
+					selectionText &&
+					selectionText.trim() !== ''
+				) {
 					staticMenu.popup(mainWindow);
 				}
 			});
 
-			// DEVTOOLS - only for dev purposes - ca333
-			// mainWindow.webContents.openDevTools()
+			if (appConfig.dev ||
+					process.argv.indexOf('devmode') > -1) {
+				mainWindow.webContents.openDevTools();
+			}
 
 			function appExit() {
+				if (((api.appConfig.dev || process.argv.indexOf('devmode') > -1) && api.appConfig.spv.cache) ||
+						(!api.appConfig.dev && process.argv.indexOf('devmode') === -1)) {
+					api.saveLocalSPVCache();
+				}
+
 				const CloseDaemons = () => {
 					return new Promise((resolve, reject) => {
-						shepherd.log('Closing Main Window...');
-						shepherd.writeLog('exiting app...');
+						api.log('Closing Main Window...', 'quit');
+						api.writeLog('exiting app...');
 
-						shepherd.quitKomodod(appConfig.cliStopTimeout);
+						api.quitKomodod(appConfig.native.cliStopTimeout);
 
 						const result = 'Closing daemons: done';
 
-						shepherd.log(result);
-						shepherd.writeLog(result);
+						api.log(result, 'quit');
+						api.writeLog(result);
 						resolve(result);
 					});
 				}
@@ -366,9 +480,9 @@ function createWindow(status, hideLoadingWindow) {
 					return new Promise((resolve, reject) => {
 						const result = 'Hiding Main Window: done';
 
-						shepherd.log('Exiting App...');
+						api.log('Exiting App...', 'quit');
 						mainWindow = null;
-						shepherd.log(result);
+						api.log(result, 'quit');
 						resolve(result);
 					});
 				}
@@ -385,7 +499,7 @@ function createWindow(status, hideLoadingWindow) {
 						const result = 'Quiting App: done';
 
 						app.quit();
-						shepherd.log(result);
+						api.log(result, 'quit');
 						resolve(result);
 					});
 				}
@@ -400,16 +514,16 @@ function createWindow(status, hideLoadingWindow) {
 				let _appClosingInterval;
 
 				if (process.argv.indexOf('dexonly') > -1) {
-					shepherd.killRogueProcess('marketmaker');
+					api.killRogueProcess('marketmaker');
 				}
-				if (!Object.keys(shepherd.coindInstanceRegistry).length ||
-						!appConfig.stopNativeDaemonsOnQuit) {
+				if (!Object.keys(api.coindInstanceRegistry).length ||
+						!appConfig.native.stopNativeDaemonsOnQuit) {
 					closeApp();
 				} else {
 					createAppCloseWindow();
-					shepherd.quitKomodod(appConfig.cliStopTimeout);
+					api.quitKomodod(appConfig.native.cliStopTimeout);
 					_appClosingInterval = setInterval(() => {
-						if (!Object.keys(shepherd.coindInstanceRegistry).length) {
+						if (!Object.keys(api.coindInstanceRegistry).length) {
 							closeApp();
 						}
 					}, 1000);
@@ -437,9 +551,9 @@ app.on('window-all-closed', () => {
 // Emitted before the application starts closing its windows.
 // Calling event.preventDefault() will prevent the default behaviour, which is terminating the application.
 app.on('before-quit', (event) => {
-	shepherd.log('before-quit');
+	api.log('before-quit', 'quit');
 	if (process.argv.indexOf('dexonly') > -1) {
-		shepherd.killRogueProcess('marketmaker');
+		api.killRogueProcess('marketmaker');
 	}
 });
 
@@ -448,7 +562,7 @@ app.on('before-quit', (event) => {
 app.on('will-quit', (event) => {
 	if (!forceQuitApp) {
 		// loading window is still open
-		shepherd.log('will-quit while loading window active');
+		api.log('will-quit while loading window active', 'quit');
 		// event.preventDefault();
 	}
 });
@@ -457,32 +571,21 @@ app.on('will-quit', (event) => {
 // Calling event.preventDefault() will prevent the default behaviour, which is terminating the application.
 app.on('quit', (event) => {
 	if (!forceQuitApp) {
-		shepherd.log('quit while loading window active');
+		api.log('quit while loading window active', 'quit');
 		// event.preventDefault();
 	}
 });
 
-app.commandLine.appendSwitch('ignore-certificate-errors'); // dirty hack
+const installExtensions = async () => {
+  const installer = require('electron-devtools-installer');
+  const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
+  const extensions = [
+		'REACT_DEVELOPER_TOOLS',
+		'REDUX_DEVTOOLS'
+	];
 
-function formatBytes(bytes, decimals) {
-  if (bytes === 0) {
-    return '0 Bytes';
-  }
-
-  const k = 1000;
-	const dm = decimals + 1 || 3;
-	const sizes = [
-    'Bytes',
-    'KB',
-    'MB',
-    'GB',
-    'TB',
-    'PB',
-    'EB',
-    'ZB',
-    'YB'
-  ];
-	const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-}
+  return Promise.all(
+    extensions.map(name => installer.default(installer[name], forceDownload))
+	)
+	.catch(console.log);
+};

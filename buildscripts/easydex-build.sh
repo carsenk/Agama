@@ -5,12 +5,12 @@
 [ -d ../gui/EasyDEX-GUI ] && cd ../gui/EasyDEX-GUI
 [ -d gui/EasyDEX-GUI ] && cd gui/EasyDEX-GUI
 
-echo "Building EasyDEX-GUI"
+echo "Building Agama-GUI"
 echo "Actual directory is: ${PWD}"
 
-echo "Checkout to redux branch."
-git checkout electrum
-git pull origin electrum
+echo "Checkout to master branch."
+git checkout master
+git pull origin master
 
 [ -d react ] && cd react || echo "!!! I can't find react"
 echo "Actual directory is: ${PWD}"
@@ -18,6 +18,6 @@ echo "Installing nodejs modules."
 npm install 
 npm install webpack
 
-echo "Building EasyDEX-GUI app."
+echo "Building Agama-GUI app."
 npm run build 
-echo "EasyDEX-GUI is built!"
+echo "Agama-GUI is built!"
