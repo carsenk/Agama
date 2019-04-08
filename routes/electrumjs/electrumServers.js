@@ -239,6 +239,9 @@ const _electrumServersExtend = {
   sdc: {
     txfee: 10000,
   },
+  d: {
+    txfee: 10000,
+  },
   // insight
   aby: {
     address: 'http://explorer.artbyte.me/api/',

@@ -59,6 +59,12 @@ const nativeCoind = {
     fullMode: true,
     port: 22555,
   },
+  'd': {
+    name: 'Denarius',
+    bin: 'denarius',
+    fullMode: true,
+    port: 32369,
+  },
   'dgb': {
     name: 'Digibyte',
     bin: 'digibyte',
