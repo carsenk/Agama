@@ -72,20 +72,23 @@
                         <distributionDirectory>
                             <origin>../build/Agama-win32-ia32/resources</origin>
                         </distributionDirectory>
+                        <distributionDirectory>
+                            <origin>../build/Agama-win32-ia32/swiftshader</origin>
+                        </distributionDirectory>
                         <distributionFile>
-                            <origin>../build/Agama-win32-ia32/blink_image_resources_200_percent.pak</origin>
+                            <origin>../build/Agama-win32-ia32/chrome_200_percent.pak</origin>
                         </distributionFile>
                         <distributionFile>
-                            <origin>../build/Agama-win32-ia32/content_resources_200_percent.pak</origin>
+                            <origin>../build/Agama-win32-ia32/chrome_100_percent.pak</origin>
                         </distributionFile>
                         <distributionFile>
-                            <origin>../build/Agama-win32-ia32/content_shell.pak</origin>
+                            <origin>../build/Agama-win32-ia32/resources.pak</origin>
                         </distributionFile>
                         <distributionFile>
-                            <origin>../build/Agama-win32-ia32/ui_resources_200_percent.pak</origin>
+                            <origin>../build/Agama-win32-ia32/osmesa.dll</origin>
                         </distributionFile>
                         <distributionFile>
-                            <origin>../build/Agama-win32-ia32/views_resources_200_percent.pak</origin>
+                            <origin>../build/Agama-win32-ia32/v8_context_snapshot.bin</origin>
                         </distributionFile>
                         <distributionFile>
                             <origin>../build/Agama-win32-ia32/icudtl.dat</origin>
@@ -112,7 +115,22 @@
                             <origin>../build/Agama-win32-ia32/libGLESv2.dll</origin>
                         </distributionFile>
                         <distributionFile>
-                            <origin>../build/Agama-win32-ia32/node.dll</origin>
+                            <origin>../build/Agama-win32-ia32/VkICD_mock_icd.dll</origin>
+                        </distributionFile>
+                        <distributionFile>
+                            <origin>../build/Agama-win32-ia32/VkLayer_core_validation.dll</origin>
+                        </distributionFile>
+                        <distributionFile>
+                            <origin>../build/Agama-win32-ia32/VkLayer_object_tracker.dll</origin>
+                        </distributionFile>
+                        <distributionFile>
+                            <origin>../build/Agama-win32-ia32/VkLayer_parameter_validation.dll</origin>
+                        </distributionFile>
+                        <distributionFile>
+                            <origin>../build/Agama-win32-ia32/VkLayer_threading.dll</origin>
+                        </distributionFile>
+                        <distributionFile>
+                            <origin>../build/Agama-win32-ia32/VkLayer_unique_objects.dll</origin>
                         </distributionFile>
                         <distributionFile>
                             <origin>../build/Agama-win32-ia32/LICENSE</origin>

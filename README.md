@@ -1,88 +1,87 @@
-# Agama Desktop App
-Desktop App for SuperNET DAPPs
+# Agama Wallet
+Komodos Desktop Multicoin Wallet
 
-#### For Developers
-You must have `node.js` and `npm` installed on your machine.
+## Build & Installation
 
-Clone Agama Desktop App with EasyDEX-GUI submodule
+#### Prerequirements:
+
+1) [Install nodeJS](https://nodejs.org/en/download/package-manager/)/npm
+
+2) Install git
 ```shell
-1) git clone https://github.com/supernetorg/agama --recursive --branch pkg_automation_electrum --single-branch
-with this command you git clone agama - but explicitly just the pkg_automation_electrum branch (therefore --single-branch) which we also use for the release packages.
-2) cd agama && cd gui/EasyDEX-GUI/
-3) git checkout electrum && git pull origin electrum
-4) npm install && npm install webpack
-5) ./binary_artifacts.sh
-6) npm start in project root folder
-7) cd gui/EasyDEX-GUI/react/src
-8) npm start
-8) toggle dev and debug options in settings
-9) restart the app
-10) sync komodod and/or asset chains
-
-You are ready to dev
+ apt-get install git
 ```
 
-### Important dev notes
+#### Build & Start EasyDEX-GUI (frontend)
 
-#### Sockets.io
-In dev mode backend is configured to send/receive messages from/to http://127.0.0.1:3000 address. If you open it as http://localhost:3000 sockets server will reject any messages.
-
-#### Coin daemon binaries
-Run binary_artifacts.sh from under agama folder you cloned previously. The script will fetch
-
-#### For end users
-The instructions to make production build of Agama App will be updated soon.
-
-To build the production ready app, install `electron-packager` and `electron-prebuilt` packages from npm
 ```shell
-npm install electron-packager -g
-npm install electron-prebuilt -g
+git clone --recursive https://github.com/komodoplatform/agama --branch master --single-branch
+cd agama/gui/EasyDEX-GUI/react/
+git checkout master && git pull origin master
+npm update && npm install
+npm run build && npm start
+```
+Leave the above process running and use a new terminal windows/tab when proceeding with the below steps.
+
+Now please create a directory called `bin` inside `assets/` and afterwards copy `komodod` and `komodo-cli` to a new subfolder named after the operating system you are building Agama for: `linux64`, `osx` or `win64`. 
+From within `agama/` the structure will be `assets/bin/linux64` (for example on linux).
+
+
+#### Start Agama App (electron)
+
+```shell
+cd agama
+npm update && npm install
+npm start
+```
+In order to use debug/dev mode please stop Agama App (electron) and either set `dev: true` and `debug: true` in `~/.agama/config.json` and then restart the app or replace step 4) from above with the start command below:
+
+```shell
+npm start devmode
 ```
 
-#### **Build the Wallet-App**
-Refer to the original [electron-packager](https://github.com/electron-userland/electron-packager) repository for more detailed information.
+You re ready to dev!
 
-##### Linux
-Change directory to iguana and execute the following command to build the Linux app
+
+## Bundling & packaging:
+
+In order to build the release bundles please install the `electron-packager` and `electron-prebuilt` packages:
+
 ```shell
-cd iguana
-electron-packager . --platform=linux --arch=x64 --icon=assets/icons/agama_icons/128x128.png --out=build/ --buildVersion=VERSION_NUMBER_HERE --ignore=assets/bin/win64 --ignore=assets/bin/osx --overwrite
+npm install electron-packager --save-dev
+npm install electron-prebuilt --save-dev
+```
+We refer to the original [electron-packager](https://github.com/electron-userland/electron-packager) repository for more detailed information and further documentation.
+
+#### Linux
+
+```shell
+cd agama
+./node_modules/.bin/electron-packager . --platform=linux --arch=x64 --icon=assets/icons/agama_icons/128x128.png --out=build/ --buildVersion=VERSION_NUMBER_HERE --ignore=assets/bin/win64 --ignore=assets/bin/osx --overwrite
 ```
 change architecture build parameter to ```--arch=x32``` for 32 bit build
 
-##### OSX
-Change directory to iguana and execute the following command to build the OSX app
+#### OSX
+
 ```shell
-cd iguana
-electron-packager . --platform=darwin --arch=x64 --icon=assets/icons/agama_icons/agama_app_icon.icns --out=build/ --buildVersion=VERSION_NUMBER_HERE --ignore=assets/bin/win64 --ignore=assets/bin/linux64 --overwrite
+cd agama
+./node_modules/.bin/electron-packager . --platform=darwin --arch=x64 --icon=assets/icons/agama_icons/agama_app_icon.icns --out=build/ --buildVersion=VERSION_NUMBER_HERE --ignore=assets/bin/win64 --ignore=assets/bin/linux64 --overwrite
 ```
 
-##### Windows
-Change directory to iguana and execute the following command to build the Windows app
-```shell
-dir iguana
-electron-packager . --platform=win32 --arch=x64 --icon=assets/icons/agama_icons/agama_app_icon.ico --out=build/ --buildVersion=VERSION_NUMBER_HERE --ignore=assets/bin/osx --ignore=assets/bin/linux64 --overwrite
+#### Windows
 
-# If generating 32bit desktop package
+```shell
+dir agama
+./node_modules/.bin/electron-packager.exe . --platform=win32 --arch=x64 --icon=assets/icons/agama_icons/agama_app_icon.ico --out=build/ --buildVersion=VERSION_NUMBER_HERE --ignore=assets/bin/osx --ignore=assets/bin/linux64 --overwrite
+
+# 32bit
 electron-packager . --platform=win32 --arch=ia32 --icon=assets/icons/agama_icons/agama_app_icon.ico --out=build/ --buildVersion=VERSION_NUMBER_HERE --ignore=assets/bin/osx --ignore=assets/bin/linux64 --overwrite
 
-# To build both x64 and x86 desktop package
+# x64 and x86
 electron-packager . --platform=win32 --arch=all --icon=assets/icons/agama_icons/agama_app_icon.ico --out=build/ --buildVersion=VERSION_NUMBER_HERE --ignore=assets/bin/osx --ignore=assets/bin/linux64 --overwrite
 ```
-change architecture build parameter to ```--arch=x64``` for 64 bit build
 
+## Additional bundling tools for deb and rpm packages
 
-## Troubleshooting Instructions
-
-### Windows DLL issues
-On Windows it's noticed iguana.exe complains about `VCRUNTIME140D.DLL` and `ucrtbased.dll` file.
-
-Please see **windeps** directory and README file for instructions to install the required DLL files on Windows, and then try again running Agama App.
-
-## Optional packages to make rpm and deb distros
-
-electron-installer-debian
-
-electron-installer-redhat
-
-refer to ./make-deb.js and ./make-rpm.js
+[electron-installer-debian](https://github.com/electron-userland/electron-installer-debian)
+[electron-installer-redhat](https://github.com/electron-userland/electron-installer-redhat)

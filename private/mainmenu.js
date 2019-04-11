@@ -1,7 +1,11 @@
-const {Menu} = require('electron');
+const { Menu } = require('electron');
 const electron = require('electron');
 const app = electron.app;
-const {shell} = require('electron');
+const { shell } = require('electron');
+const {
+  pathsAgama,
+  pathsDaemons,
+} = require('../routes/api/pathsUtil');
 
 const template = [
   {
@@ -94,6 +98,37 @@ const template = [
         label: 'Reset settings',
         click (item, focusedWindow) {
           focusedWindow.resetSettings();
+        }
+      },
+      {
+        label: 'Contact help desk',
+        click (item, focusedWindow) {
+          shell.openExternal('https://support.komodoplatform.com/support/tickets/new');
+        }
+      },
+      // ref: https://github.com/sindresorhus/new-github-issue-url
+      {
+        label: 'Add Github issue',
+        click (item, focusedWindow) {
+          shell.openExternal('https://github.com/komodoplatform/agama/issues/new?body=Please+describe+your+issue+in+details.+Attach+screenshots+if+you+can,+they+help+a+lot.');
+        }
+      },
+      {
+        label: 'Show Agama data folder',
+        click (item, focusedWindow) {
+          shell.openItem(pathsAgama());
+        }
+      },
+      {
+        label: 'Show Komodo data folder (default)',
+        click (item, focusedWindow) {
+          shell.openItem(pathsDaemons().komodoDir);
+        }
+      },
+      {
+        label: 'Show komodo-cli folder',
+        click (item, focusedWindow) {
+          shell.openItem(pathsDaemons().komodocliDir);
         }
       },
     ]
